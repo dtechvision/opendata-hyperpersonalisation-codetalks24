@@ -1,5 +1,5 @@
 import Head from "next/head";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useSession, signIn, signOut, getCsrfToken } from "next-auth/react";
 import {
   SignInButton,
@@ -7,6 +7,9 @@ import {
   StatusAPIResponse,
 } from "@farcaster/auth-kit";
 import "@farcaster/auth-kit/styles.css";
+import { useRouter } from "next/router";
+import { publicClient } from "./client";
+import { parseEther } from "viem";
 
 const config = {
   relay: "https://relay.farcaster.xyz",
@@ -14,6 +17,57 @@ const config = {
   siweUri: "http://dtech.vision/login",
   domain: "dtech.vision",
 };
+
+async function getWalletAddress(username: string): Promise<`0x${string}`> {
+  const response = await fetch(`https://api.neynar.com/v2/farcaster/user/search?q=${username}&limit=5`, {
+    method: 'GET',
+    headers: {
+      'accept': 'application/json',
+      'api_key': 'NEYNAR_API_DOCS',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+
+  const data = await response.json();
+  return data.result.users[0].verifications[0] as `0x${string}`; // Adjust as needed based on your requirements
+}
+
+async function getRecentPosts(username: string): Promise<string> {
+  const response = await fetch(`https://api.neynar.com/v2/farcaster/user/search?q=${username}&limit=5`, {
+    method: 'GET',
+    headers: {
+      'accept': 'application/json',
+      'api_key': 'NEYNAR_API_DOCS',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+
+  const data = await response.json();  
+  const fid: number = data.result.users[0].fid;
+
+  // Fetch recent casts using the fid
+  const castsResponse = await fetch(`https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${fid}&limit=25&include_replies=false`, {
+    method: 'GET',
+    headers: {
+      'accept': 'application/json',
+      'api_key': 'NEYNAR_API_DOCS',
+    },
+  });
+
+  if (!castsResponse.ok) {
+    throw new Error('Network response for casts was not ok');
+  }
+  const castsData = await castsResponse.json();
+  const allCastTexts: string = castsData.casts.map((cast) => cast.text).join(' ');
+
+  return allCastTexts; // Return concatenated cast texts
+}
 
 const basins = {
   kitchen: [
@@ -278,6 +332,7 @@ const basins = {
 
 export default function Home() {
   const [selectedBasin, setSelectedBasin] = useState("kitchen");
+  const [ personalize, setPersonalize ] = useState(true);
   const { data: session } = useSession();
   const [error, setError] = useState(false);
 
@@ -296,6 +351,64 @@ export default function Home() {
       redirect: false,
     });
   }, []);
+
+  const router = useRouter();
+
+  useEffect(() => {
+    // if one uses a one click login link via farcaster frame -> sign in 
+    if (router.query.signedmessagebytes) {
+      const signedmessagebytes = router.query.signedmessagebytes as string;
+      if (signedmessagebytes) {
+        try {
+          // redirect is set to false to leave us on current page and get CSV vs being looped around
+          signIn("farcasterframe", { signedmessagebytes, redirect: false });
+          router.replace(router.pathname, undefined, { shallow: true });
+        } catch (error) {
+          console.error("Failed to sign in with Farcaster Frame");
+        }
+      }
+    }
+  }, [router.query.signedmessagebytes, signIn, session, router]);
+
+  useEffect(() => {
+    if(session && personalize) {
+      // personalize the home screen for that user by setting the selectedBasin and changing item collection for them
+
+      // // personalize based on username
+      // if(session.user?.name?.includes("samuel"))
+      //   setSelectedBasin("bathroom");
+
+      // // personalize based on holding more then 0.1 ETH or not
+      // getWalletAddress(session.user?.name!).then(
+      //   (address) => {
+      //     console.log('getWalletAddess returned:', address)
+      //     publicClient.getBalance({ 
+      //       address: address
+      //     }).then(
+      //       (bal) => {
+      //         if(bal >= parseEther("0.1"))
+      //           setSelectedBasin('utility')
+      //       }
+      //     )
+      //   }
+      // );
+
+      // // personalize based on social media content
+      // getRecentPosts(session.user?.name!).then(
+      //   (posts) => {
+      //     if(posts.includes('bathroom')) {
+      //       console.log('Users posts include the word bathroom')
+      //       setSelectedBasin('bathroom');
+      //     } else {
+      //       console.log('Users posts do not include the word bathroom')
+      //     }
+      //   }
+      // )
+
+      setPersonalize(false); // make sure we don't just constantly reset it
+    }
+  }, [session, personalize])
+
 
   return (
     <AuthKitProvider config={config}>
@@ -316,8 +429,8 @@ export default function Home() {
               {session ? (
                 <div className="flex items-center">
                   <img
-                    src={session.user?.image}
-                    alt={session.user?.name}
+                    src={session.user?.image!}
+                    alt={session.user?.name!}
                     className="w-8 h-8 rounded-full mr-2"
                   />
                   <span className="mr-4 text-black">{session.user?.name}</span>
@@ -440,7 +553,7 @@ export default function Home() {
             </div>
             <div className="mt-8 md:mt-0 md:order-1">
               <p className="text-center text-base text-gray-400">
-                &copy; 2023 Basin Store, Inc. All rights reserved.
+                &copy; 2024 Basin Store, Inc. All rights reserved.
               </p>
             </div>
           </div>
