@@ -19,6 +19,7 @@ const config = {
 };
 
 async function getWalletAddress(username: string): Promise<`0x${string}`> {
+  // reference docs of the endpoint https://docs.neynar.com/reference/user-search
   const response = await fetch(`https://api.neynar.com/v2/farcaster/user/search?q=${username}&limit=5`, {
     method: 'GET',
     headers: {
@@ -36,6 +37,7 @@ async function getWalletAddress(username: string): Promise<`0x${string}`> {
 }
 
 async function getRecentPosts(username: string): Promise<string> {
+  // reference docs of the endpoint https://docs.neynar.com/reference/user-search
   const response = await fetch(`https://api.neynar.com/v2/farcaster/user/search?q=${username}&limit=5`, {
     method: 'GET',
     headers: {
@@ -51,7 +53,7 @@ async function getRecentPosts(username: string): Promise<string> {
   const data = await response.json();  
   const fid: number = data.result.users[0].fid;
 
-  // Fetch recent casts using the fid
+  // Fetch recent casts using the fid via https://docs.neynar.com/reference/feed-user-casts
   const castsResponse = await fetch(`https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${fid}&limit=25&include_replies=false`, {
     method: 'GET',
     headers: {
@@ -373,37 +375,6 @@ export default function Home() {
   useEffect(() => {
     if(session && personalize) {
       // personalize the home screen for that user by setting the selectedBasin and changing item collection for them
-
-      // // personalize based on username
-      // if(session.user?.name?.includes("samuel"))
-      //   setSelectedBasin("bathroom");
-
-      // // personalize based on holding more then 0.1 ETH or not
-      // getWalletAddress(session.user?.name!).then(
-      //   (address) => {
-      //     console.log('getWalletAddess returned:', address)
-      //     publicClient.getBalance({ 
-      //       address: address
-      //     }).then(
-      //       (bal) => {
-      //         if(bal >= parseEther("0.1"))
-      //           setSelectedBasin('utility')
-      //       }
-      //     )
-      //   }
-      // );
-
-      // // personalize based on social media content
-      // getRecentPosts(session.user?.name!).then(
-      //   (posts) => {
-      //     if(posts.includes('bathroom')) {
-      //       console.log('Users posts include the word bathroom')
-      //       setSelectedBasin('bathroom');
-      //     } else {
-      //       console.log('Users posts do not include the word bathroom')
-      //     }
-      //   }
-      // )
 
       setPersonalize(false); // make sure we don't just constantly reset it
     }
